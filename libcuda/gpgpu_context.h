@@ -79,5 +79,7 @@ class gpgpu_context {
   unsigned translate_pc_to_ptxlineno(unsigned pc);
 };
 gpgpu_context *GPGPU_Context();
+void GPGPU_ptx_file_line_stats_add_liveness_report(unsigned pc,
+                                                   unsigned count_until_write);
 
 #endif /* __gpgpu_context_h__ */

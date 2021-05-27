@@ -56,6 +56,10 @@
 #include "stats.h"
 #include "traffic_breakdown.h"
 
+
+extern void GPGPU_ptx_file_line_stats_add_liveness_report(unsigned pc,
+                                                          unsigned count_until_write);
+
 #define NO_OP_FLAG 0xFF
 
 /* READ_PACKET_SIZE:
@@ -669,6 +673,15 @@ class opndcoll_rfu_t {  // operand collector based register file unit
 
     // accessors
     bool valid() const { return m_valid; }
+    unsigned pc() const {
+      return m_warp ? m_warp->pc : m_cu->pc();
+    }
+    uarch_op_t op() const {
+      return m_warp ? m_warp->op : m_cu->op();
+    }
+    const warp_inst_t* warp() const {
+      return m_warp ?: m_cu->warp();
+    }
     unsigned get_reg() const {
       assert(m_valid);
       return m_register;
@@ -764,17 +777,47 @@ class opndcoll_rfu_t {  // operand collector based register file unit
       assert(is_free());
       m_allocation = READ_ALLOC;
       m_op = op;
+      handle_history();
     }
     void alloc_write(const op_t &op) {
       assert(is_free());
       m_allocation = WRITE_ALLOC;
       m_op = op;
+      handle_history();
     }
-    void reset() { m_allocation = NO_ALLOC; }
+
+    void handle_history()
+    {
+      if (m_op.valid() && m_allocation == WRITE_ALLOC && !m_op.warp()->is_load())
+        m_previous_ops.clear();
+      else if (m_op.valid() && m_allocation == WRITE_ALLOC) {
+        ssize_t count_from_last_write = 0;
+        for (auto it = m_previous_ops.crbegin();
+             it < m_previous_ops.crend();
+             ++it)
+        {
+          if (std::get<2>(*it) == WRITE_ALLOC)
+            break;
+          ++count_from_last_write;
+        }
+        GPGPU_ptx_file_line_stats_add_liveness_report(m_op.pc(), count_from_last_write);
+      }
+    }
+
+    void reset() {
+      if (m_op.valid())
+        m_previous_ops.emplace_back(m_op.pc(), m_op.op(), m_allocation);
+      m_allocation = NO_ALLOC;
+    }
 
    private:
     enum alloc_t m_allocation;
     op_t m_op;
+    using history_operation_t = std::tuple<address_type, op_type, alloc_t>;
+    std::vector<history_operation_t> m_previous_ops;
+
+   public:
+    const std::vector<history_operation_t>& history() const { return m_previous_ops; }
   };
 
   class arbiter_t {
@@ -856,6 +899,8 @@ class opndcoll_rfu_t {  // operand collector based register file unit
       for (unsigned b = 0; b < m_num_banks; b++) m_allocated_bank[b].reset();
     }
 
+    const allocation_t& bank(unsigned b) const { return m_allocated_bank[b]; }
+
    private:
     unsigned m_num_banks;
     unsigned m_num_collectors;
@@ -924,6 +969,9 @@ class opndcoll_rfu_t {  // operand collector based register file unit
     unsigned get_num_regs() const { return m_warp->get_num_regs(); }
     void dispatch();
     bool is_free() { return m_free; }
+    unsigned pc() const { return m_warp->pc; }
+    uarch_op_t op() const { return m_warp->op; }
+    const warp_inst_t *warp() const { return m_warp; }
 
    private:
     bool m_free;

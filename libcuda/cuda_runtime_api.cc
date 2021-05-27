@@ -261,6 +261,11 @@ gpgpu_context *GPGPU_Context() {
   return gpgpu_ctx;
 }
 
+void GPGPU_ptx_file_line_stats_add_liveness_report(unsigned pc,
+                                                   unsigned count_until_write) {
+  GPGPU_Context()->stats->ptx_file_line_stats_add_liveness_report(pc, count_until_write);
+}
+
 void ptxinfo_data::ptxinfo_addinfo() {
   CUctx_st *context = GPGPUSim_Context(gpgpu_ctx);
   if (!get_ptxinfo_kname()) {

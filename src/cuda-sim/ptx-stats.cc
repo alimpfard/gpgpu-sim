@@ -88,7 +88,8 @@ class ptx_file_line_stats {
         gmem_n_access_total(0),
         gmem_warp_count(0),
         exposed_latency(0),
-        warp_divergence(0) {}
+        warp_divergence(0),
+        liveness_reports() {}
 
   unsigned long exec_count;
   unsigned long long latency;
@@ -105,6 +106,8 @@ class ptx_file_line_stats {
                                        // (attributed to this instruction)
   unsigned long long
       warp_divergence;  // number of warp divergence occured at this instruction
+
+  std::vector<std::tuple<unsigned, unsigned>> liveness_reports;
 };
 
 #if (tr1_hash_map_ismap == 1)
@@ -135,7 +138,7 @@ void ptx_stats::ptx_file_line_stats_write_file() {
   fprintf(
       pfile,
       "kernel line : count latency dram_traffic smem_bk_conflicts smem_warp "
-      "gmem_access_generated gmem_warp exposed_latency warp_divergence\n");
+      "gmem_access_generated gmem_warp exposed_latency warp_divergence +insns//\n");
   for (it = ptx_file_line_stats_tracker.begin();
        it != ptx_file_line_stats_tracker.end(); it++) {
     fprintf(pfile, "%s %i : ", it->first.st.c_str(), it->first.line);
@@ -148,6 +151,10 @@ void ptx_stats::ptx_file_line_stats_write_file() {
     fprintf(pfile, "%lu ", it->second.gmem_warp_count);
     fprintf(pfile, "%llu ", it->second.exposed_latency);
     fprintf(pfile, "%llu ", it->second.warp_divergence);
+    fprintf(pfile, "\n");
+    for (auto& entry : it->second.liveness_reports) {
+      fprintf(pfile, "@%d +%d, ", std::get<0>(entry), std::get<1>(entry));
+    }
     fprintf(pfile, "\n");
   }
   fflush(pfile);
@@ -294,4 +301,10 @@ void ptx_stats::ptx_file_line_stats_add_warp_divergence(
   ptx_file_line_stats &line_stats = ptx_file_line_stats_tracker[ptx_file_line(
       pInsn->source_file(), pInsn->source_line())];
   line_stats.warp_divergence += n_way_divergence;
+}
+
+void ptx_stats::ptx_file_line_stats_add_liveness_report(unsigned pc,
+                                                        unsigned count_until_write)
+{
+  fprintf(stderr, "PC = %d, write hit = %d\n", pc, count_until_write);
 }

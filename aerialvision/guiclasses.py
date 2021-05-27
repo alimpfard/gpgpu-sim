@@ -64,7 +64,7 @@
 import time
 import os
 import array
-import Tkinter as Tk
+import tkinter as Tk
 import matplotlib
 matplotlib.use('TkAgg')
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
@@ -252,14 +252,14 @@ class formEntry:
     
     
     #filling in xAxis vars
-    for keys in self.data[self.fileChosen].keys():
+    for keys in list(self.data[self.fileChosen].keys()):
         if keys == 'globalCycle':
             self.cXAxisData.insert(Tk.END, keys)
             
     #filling in yAxis vars
     #Need to fill up list alphabetically
     keysAlpha = []
-    for key in self.data[self.fileChosen].keys():
+    for key in list(self.data[self.fileChosen].keys()):
         if key not in ['globalCycle','CFLOG','EXTVARS']:#exclude hacks from list
             keysAlpha.append(key)
     keysAlpha.sort(lambda x, y: cmp(x.lower(),y.lower()))
@@ -931,7 +931,7 @@ class graphManager:
         
         
         
-        if self.simplerName.has_key('globalTotInsn') == 'False':
+        if ('globalTotInsn' in self.simplerName) == 'False':
             graphOption = 1
             
         if (graphOption == 1):  
@@ -972,7 +972,7 @@ class graphManager:
 
         graphOption = "NULL"
             
-        if self.simplerName.has_key('globalTotInsn') == 'False':
+        if ('globalTotInsn' in self.simplerName) == 'False':
             graphOption = 1
     
         if (graphOption == 1):
@@ -1018,7 +1018,7 @@ class graphManager:
     
         #if there are kernals.. we need to adjust the x axis for proper labelling
         #Need to make changes here.. works for now though
-        if self.simplerName.has_key('globalTotInsn'):
+        if 'globalTotInsn' in self.simplerName:
             x = self.updateVarKernal(x)
 
         concentrationFactor = len(x) // 512 + 1
@@ -1038,7 +1038,7 @@ class graphManager:
         yoff = numpy.array([0.0] * numCols) #variable use to remember the last top location of a bar so that we may stack the proceeding bar on top of it
         #Legendname = ['UNUSED', 'UNUSED', 'FQPUSHED','ICNT_PUSHED','ICNT_INJECTED','ICNT_AT_DEST','DRAMQ','DRAM_PROCESSING_START','DRAM_PROCESSING_END','DRAM_OUTQ','2SH_ICNT_PUSHED','2SH_ICNT_INJECTED','2SH_ICNT_AT_DEST','2SH_FQ_POP','RETURN_Q']; 
         Legendname = ['N/A', 'N/A','N/A','IcntInpBuf','N/A','Icnt2DRAM','N/A','N/A','N/A','DRAM','2Sh_IcntInpBuf','N/A','Icnt2shd','N/A','N/A']; 
-        BarSequence = range(numRows-1,-1,-1)
+        BarSequence = list(range(numRows-1,-1,-1))
 
         if yAxis == 'WarpDivergenceBreakdown':
             Legendname = []
@@ -1046,21 +1046,21 @@ class graphManager:
             Legendname.append('Data Hazard')
             Legendname.append('Stall')
             for c in range(2, numRows):
-                Legendname.append('W' + `4*(c-2)+1` +  ':' + `4*(c-1)`)
-            BarSequence = range(0,numRows)
+                Legendname.append('W' + repr(4*(c-2)+1) +  ':' + repr(4*(c-1)))
+            BarSequence = list(range(0,numRows))
 
         if yAxis == 'WarpIssueSlotBreakdown':
             Legendname = []
             for c in range(0, numRows):
-                Legendname.append('W' + `c`)
-            BarSequence = range(0,numRows)
+                Legendname.append('W' + repr(c))
+            BarSequence = list(range(0,numRows))
 
         dynamic_warp_resolution = 32
         if yAxis == 'WarpIssueDynamicIdBreakdown':
             Legendname = []
             for c in range(0, numRows):
-                Legendname.append('W' + `dynamic_warp_resolution*c` + ":" + `dynamic_warp_resolution*(c+1)`)
-            BarSequence = range(0,numRows)
+                Legendname.append('W' + repr(dynamic_warp_resolution*c) + ":" + repr(dynamic_warp_resolution*(c+1)))
+            BarSequence = list(range(0,numRows))
 
         yoff_max = numpy.array([0.0] * numCols)
         for row in range(numRows-1,-1,-1):
@@ -1105,7 +1105,7 @@ class graphManager:
         self.canvas.show()
         
     def type4Variable(self, x, xAxis, y, yAxis, plotID):
-        keys = y.keys()
+        keys = list(y.keys())
         keys.sort()
             
         if (self.dataPointer.graphChosen == self.possGraphs[3]):
@@ -1351,7 +1351,7 @@ class graphManager:
                 xlabelValues.append(x[count])
                 xlabelPos.append(xticksPos[count])
         
-        print self.yAxisStepsWilStack[self.currPlot]
+        print(self.yAxisStepsWilStack[self.currPlot])
         for count in range(0,len(y),len(y)/self.yAxisStepsWilStack[self.currPlot]):
             ylabelValues.append(yTicks[count])
             ylabelPos.append(yticksPos[count])            
@@ -1480,7 +1480,7 @@ class graphManager:
                   else:
                       for iter in range(0, self.dataPointer.dydx):
                         if self.simplerName[self.dataPointer.dataChosenY].type == 4:
-                          keys = self.simplerName[self.dataPointer.dataChosenY].data.keys()
+                          keys = list(self.simplerName[self.dataPointer.dataChosenY].data.keys())
                           keys.sort()
                           y = []
                           for iter in keys:
@@ -1523,7 +1523,7 @@ class graphManager:
               entry[self.currPlot] = (maxEntry, minEntry)
         
               cmap = self.plotFormatInfo[self.currPlot].cmap
-              plotCMap = apply(Tk.OptionMenu, (root[-1], cmap) + tuple(PlotFormatInfo.cmapOptions)) 
+              plotCMap = Tk.OptionMenu(*(root[-1], cmap) + tuple(PlotFormatInfo.cmapOptions)) 
               plotCMap.pack(side = Tk.LEFT, padx = 5)
           
 
@@ -1612,7 +1612,7 @@ class graphManager:
         for self.currPlot in range(1,numPlots + 1):
           self.findKernalLocs()
           
-          if vars.has_key(str(self.currPlot)):
+          if str(self.currPlot) in vars:
               if vars[str(self.currPlot)].get() == 1:
                   self.dataPointer.dydx += 1
 
@@ -1681,12 +1681,12 @@ class graphManager:
         if (self.yAxisStepsWilStack[plotToIncrease] == 1):
             self.yAxisStepsWilStack[plotToIncrease] = 2
         self.yAxisStepsWilStack[plotToIncrease] = int(float(self.yAxisStepsWilStack[plotToIncrease])*1.50)
-        print self.yAxisStepsWilStack[plotToIncrease]
+        print(self.yAxisStepsWilStack[plotToIncrease])
         self.plotDataForNewBinning(plotToIncrease)
 
     def collectDataDecreaseYBinning(self, currPlot, remove = False):
         plotToDecrease = int(currPlot[0])
-        print self.yAxisStepsWilStack[plotToDecrease]
+        print(self.yAxisStepsWilStack[plotToDecrease])
         if (remove == True):
             self.yAxisStepsWilStack[plotToDecrease] = 1
         else:
@@ -1751,7 +1751,7 @@ class graphManager:
           entries[self.currPlot].append(Tk.Entry(root, width = 50))
           entries[self.currPlot][-1].grid(row = currentRow, column = 4, padx = 10)
           entries[self.currPlot][-1].insert(0, self.plot.get_xlabel())
-          if self.colorbars.has_key(self.currPlot):
+          if self.currPlot in self.colorbars:
               plotLabel3 = Tk.Label(root, text = 'Colorbar: ', bg = 'white')
               plotLabel3.grid(row = currentRow, column = 5)
               entries[self.currPlot].append(Tk.Entry(root, width = 20))
@@ -1821,7 +1821,7 @@ class graphManager:
           self.plot.set_ylabel(plotFormat.ylabel, fontsize=plotFormat.labelFontSize)
           plotFormat.xlabel = entries[self.currPlot][1].get()
           self.plot.set_xlabel(plotFormat.xlabel, fontsize=plotFormat.labelFontSize)
-          if self.colorbars.has_key(self.currPlot):
+          if self.currPlot in self.colorbars:
               plotFormat.cbarlabel = entries[self.currPlot][2].get()
               self.colorbars[self.currPlot].set_label(plotFormat.cbarlabel, fontsize=plotFormat.labelFontSize)
           else:
@@ -1841,7 +1841,7 @@ class graphManager:
               ytickslabels[n].set_fontsize(plotFormat.yticksFontSize)
 
           # change colorbar ticks label fontsize
-          if self.colorbars.has_key(self.currPlot):
+          if self.currPlot in self.colorbars:
               for label in self.colorbars[self.currPlot].ax.get_yticklabels():
                   label.set_fontsize(plotFormat.cticksFontSize)
 
@@ -2285,8 +2285,8 @@ class newTextTab:
             count += 1
 
     def yview(self, *args):
-        apply(self.textbox.yview, args)
-        apply(self.statstextbox.yview, args)
+        self.textbox.yview(*args)
+        self.statstextbox.yview(*args)
         
     def onclick(self, event):
       if event.button == 3:
@@ -2317,8 +2317,8 @@ class newTextTab:
           
         
         
-        apply(self.textbox.yview, args)
-        apply(self.statstextbox.yview, args)
+        self.textbox.yview(*args)
+        self.statstextbox.yview(*args)
       
     def chooseFileCuda(self, *event):
       self.fileChosen = self.cAvailableCudaFiles.get('active')
