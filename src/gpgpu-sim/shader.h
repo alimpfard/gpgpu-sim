@@ -777,7 +777,8 @@ class opndcoll_rfu_t {  // operand collector based register file unit
       assert(is_free());
       m_allocation = READ_ALLOC;
       m_op = op;
-      handle_history();
+      if (!m_previous_ops.empty())
+        m_previous_ops.emplace_back(m_op.pc(), m_op.op(), m_allocation);
     }
     void alloc_write(const op_t &op) {
       assert(is_free());
@@ -788,25 +789,24 @@ class opndcoll_rfu_t {  // operand collector based register file unit
 
     void handle_history()
     {
-      if (m_op.valid() && m_allocation == WRITE_ALLOC && !m_op.warp()->is_load())
-        m_previous_ops.clear();
-      else if (m_op.valid() && m_allocation == WRITE_ALLOC) {
-        ssize_t count_from_last_write = 0;
-        for (auto it = m_previous_ops.crbegin();
-             it < m_previous_ops.crend();
-             ++it)
-        {
-          if (std::get<2>(*it) == WRITE_ALLOC)
-            break;
-          ++count_from_last_write;
+      auto is_eligible_for_counting = m_op.valid() && m_allocation == WRITE_ALLOC && m_op.warp()->is_load();
+      if (!m_previous_ops.empty() && m_op.valid() && m_allocation == WRITE_ALLOC) {
+        auto count_from_last_write = m_previous_ops.size() - 1;
+        if (count_from_last_write > 0) {
+          fprintf(stderr, "warp = %d, PC = %d, ", m_op.warp() ? m_op.warp()->warp_id() : -1, std::get<0>(m_previous_ops[0]));
+          if (count_from_last_write == 1) {
+            fprintf(stderr, "read at %d, ", std::get<0>(m_previous_ops.back()));
+          }
+          fprintf(stderr, "count = %zu\n", count_from_last_write);
         }
-        GPGPU_ptx_file_line_stats_add_liveness_report(m_op.pc(), count_from_last_write);
       }
+
+      m_previous_ops.clear();
+      if (is_eligible_for_counting)
+        m_previous_ops.emplace_back(m_op.pc(), m_op.op(), m_allocation);
     }
 
     void reset() {
-      if (m_op.valid())
-        m_previous_ops.emplace_back(m_op.pc(), m_op.op(), m_allocation);
       m_allocation = NO_ALLOC;
     }
 
