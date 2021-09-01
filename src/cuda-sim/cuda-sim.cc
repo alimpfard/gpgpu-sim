@@ -273,19 +273,104 @@ void function_info::ptx_assemble() {
     return;
   }
 
-  // get the instructions into instruction memory...
-  unsigned num_inst = m_instructions.size();
-  m_instr_mem_size = MAX_INST_SIZE * (num_inst + 1);
-  m_instr_mem = new ptx_instruction *[m_instr_mem_size];
-
   printf("GPGPU-Sim PTX: instruction assembly for function \'%s\'... ",
          m_name.c_str());
   fflush(stdout);
   std::list<ptx_instruction *>::iterator i;
 
+  // Apply the reg2mem deopt here
+  // FIXME: This could be made significantly faster
+  // if a register filled by a load instruction is used only once, remove it and change its user to a direct mem access.
+  // if such a register is loaded into conditionally, leave it alone.
+  // FIXME: Further analysis with a phi node could clean that up.
+  if (false)
+  for (auto it0 = m_instructions.begin(); it0 != m_instructions.end(); ++it0) {
+      auto insn = *it0;
+      // FIXME: Implement 'LDU'
+      if (insn->get_opcode() != LD_OP)
+          continue;
+      if (insn->has_pred())
+          continue;
+      if (!insn->dst().is_reg())
+          continue;
+      if (insn->get_num_operands() != 2)
+          continue;
+      if (auto type = insn->src1().get_type(); (type != address_t && type != memory_t) || !insn->src1().get_symbol()->is_valid_reg_num())
+          continue;
+      printf("Looking for users of load: ");
+      insn->print_insn();
+      printf("\n");
+      auto dest = insn->dst().reg_num();
+      ptx_instruction* user = nullptr;
+      bool multiple_users = false;
+      bool useless_load = false;
+      auto it1 = it0;
+      ++it1;
+      for (; it1 != m_instructions.end(); ++it1) {
+          auto potential_user = *it1;
+          if (potential_user->get_num_operands() < 1)
+              continue;
+          auto& dst = potential_user->dst();
+          if (dst.is_reg() && dst.reg_num() == dest) {
+              useless_load = !user;
+              break;
+          }
+          for (size_t i = 1; i < potential_user->get_num_operands(); ++i) {
+              auto& dst = potential_user->operand_lookup(i);
+              if (dst.is_reg() && dst.reg_num() == dest) {
+                  if (!user) {
+                      printf("  Potential user: ");
+                      potential_user->print_insn();
+                      printf("\n");
+                      user = potential_user;
+                      continue;
+                  }
+                  multiple_users = true;
+                  break;
+              }
+          }
+      }
+      if (useless_load || multiple_users || !user) {
+          printf("  Found: user: %p, multiple? %s, useless? %s\n", user, multiple_users?"true":"false", useless_load?"true":"false");
+          continue;
+      }
+
+      printf("  Found: user: %p (", user);
+      user->print_insn();
+      printf(")\n");
+
+      // 0. figure out what kinda load this is
+      auto opcode = insn->get_opcode();
+      auto space = insn->get_space();
+      // 1. switch the user to do a direct load
+      if (opcode == LD_OP) {
+          for (size_t i = 1; i < user->get_num_operands(); ++i) {
+              auto& op = user->operand_lookup(i);
+              if (!(op.is_reg() && op.reg_num() == dest))
+                  continue;
+
+              op = insn->src1();
+              op.set_addr_space(insn->get_space().get_type());
+          }
+          printf("  Patched: user: %p (", user);
+          user->print_insn();
+          printf(")\n");
+      } else {
+          continue;
+      }
+      // 2. remove this instruction
+      it0 = m_instructions.erase(it0);
+  }
+
+  // get the instructions into instruction memory...
+  unsigned num_inst = m_instructions.size();
+  m_instr_mem_size = MAX_INST_SIZE * (num_inst + 1);
+  m_instr_mem = new ptx_instruction *[m_instr_mem_size];
+
   addr_t PC =
-      gpgpu_ctx->func_sim->g_assemble_code_next_pc;  // globally unique address
-                                                     // (across functions)
+          gpgpu_ctx->func_sim->g_assemble_code_next_pc;  // globally unique address
+                                                         // (across functions)
+
   // start function on an aligned address
   for (unsigned i = 0; i < (PC % MAX_INST_SIZE); i++)
     gpgpu_ctx->s_g_pc_to_insn.push_back((ptx_instruction *)NULL);

@@ -417,7 +417,7 @@ breakaddr  TC; yylval->int_value = BREAKADDR_OP; return OPCODE;
 "@" 	TC; return PRED;
 "|" 	TC; return PIPE;
 "["     TC; return LEFT_SQUARE_BRACKET;
-"]"	TC; return RIGHT_SQUARE_BRACKET;
+"]"	    TC; return RIGHT_SQUARE_BRACKET;
 "<"     TC; return LEFT_ANGLE_BRACKET;
 ">"	TC; return RIGHT_ANGLE_BRACKET;
 "("	TC; return LEFT_PAREN;

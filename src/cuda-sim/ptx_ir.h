@@ -254,6 +254,9 @@ class symbol {
     }
     return m_type->get_key().is_non_arch_reg();
   }
+  bool is_valid_reg_num() const {
+      return m_reg_num_valid;
+  }
 
   void add_initializer(const std::list<operand_info> &init);
   bool has_initializer() const { return m_initializer.size() > 0; }
@@ -711,7 +714,11 @@ class operand_info {
     if (m_type != symbolic_t) {
       return false;
     }
-    return m_value.m_symbolic->type()->get_key().is_reg();
+    if (!m_value.m_symbolic)
+        return false;
+    if (auto type = m_value.m_symbolic->type())
+      return type->get_key().is_reg();
+    return false;
   }
   bool is_param_local() const {
     if (m_type != symbolic_t) return false;
@@ -1030,9 +1037,13 @@ class ptx_instruction : public warp_inst_t {
     return m_operands[8];
   }
 
-  const operand_info &operand_lookup(unsigned n) const {
+  operand_info &operand_lookup(unsigned n) {
     assert(n < m_operands.size());
     return m_operands[n];
+  }
+  const operand_info &operand_lookup(unsigned n) const {
+      assert(n < m_operands.size());
+      return m_operands[n];
   }
   bool has_return() const { return m_return_var.is_valid(); }
 
