@@ -283,83 +283,97 @@ void function_info::ptx_assemble() {
   // if a register filled by a load instruction is used only once, remove it and change its user to a direct mem access.
   // if such a register is loaded into conditionally, leave it alone.
   // FIXME: Further analysis with a phi node could clean that up.
-  if (false)
-  for (auto it0 = m_instructions.begin(); it0 != m_instructions.end(); ++it0) {
-      auto insn = *it0;
-      // FIXME: Implement 'LDU'
-      if (insn->get_opcode() != LD_OP)
-          continue;
-      if (insn->has_pred())
-          continue;
-      if (!insn->dst().is_reg())
-          continue;
-      if (insn->get_num_operands() != 2)
-          continue;
-      if (auto type = insn->src1().get_type(); (type != address_t && type != memory_t) || !insn->src1().get_symbol()->is_valid_reg_num())
-          continue;
-      printf("Looking for users of load: ");
-      insn->print_insn();
-      printf("\n");
-      auto dest = insn->dst().reg_num();
-      ptx_instruction* user = nullptr;
-      bool multiple_users = false;
-      bool useless_load = false;
-      auto it1 = it0;
-      ++it1;
-      for (; it1 != m_instructions.end(); ++it1) {
-          auto potential_user = *it1;
-          if (potential_user->get_num_operands() < 1)
+  if (getenv("REG2MEM")) {
+      std::map<typename std::remove_reference<decltype(*i)>::type, std::size_t> injected_memory_operands;
+      for (auto it0 = m_instructions.begin(); it0 != m_instructions.end(); ++it0) {
+          auto insn = *it0;
+          // FIXME: Implement 'LDU'
+          if (insn->get_opcode() != LD_OP)
               continue;
-          auto& dst = potential_user->dst();
-          if (dst.is_reg() && dst.reg_num() == dest) {
-              useless_load = !user;
-              break;
-          }
-          for (size_t i = 1; i < potential_user->get_num_operands(); ++i) {
-              auto& dst = potential_user->operand_lookup(i);
+          if (insn->has_pred())
+              continue;
+          if (!insn->dst().is_reg())
+              continue;
+          if (insn->get_num_operands() != 2)
+              continue;
+          if (auto type = insn->src1().get_type(); (type != address_t && type != memory_t) || !insn->src1().get_symbol()->is_valid_reg_num())
+              continue;
+          printf("Looking for users of load: ");
+          insn->print_insn();
+          printf("\n");
+          auto dest = insn->dst().reg_num();
+          ptx_instruction* user = nullptr;
+          bool multiple_users = false;
+          bool useless_load = false;
+          auto it1 = it0;
+          ++it1;
+          for (; it1 != m_instructions.end(); ++it1) {
+              auto potential_user = *it1;
+              if (potential_user->get_num_operands() < 1)
+                  continue;
+              auto& dst = potential_user->dst();
               if (dst.is_reg() && dst.reg_num() == dest) {
-                  if (!user) {
-                      printf("  Potential user: ");
-                      potential_user->print_insn();
-                      printf("\n");
-                      user = potential_user;
-                      continue;
-                  }
-                  multiple_users = true;
+                  useless_load = !user;
                   break;
               }
+              for (size_t i = 1; i < potential_user->get_num_operands(); ++i) {
+                  auto& dst = potential_user->operand_lookup(i);
+                  if (dst.is_reg() && dst.reg_num() == dest) {
+                      if (!user) {
+                          printf("  Potential user: ");
+                          potential_user->print_insn();
+                          printf("\n");
+                          user = potential_user;
+                          continue;
+                      }
+                      multiple_users = true;
+                      break;
+                  }
+              }
           }
-      }
-      if (useless_load || multiple_users || !user) {
-          printf("  Found: user: %p, multiple? %s, useless? %s\n", user, multiple_users?"true":"false", useless_load?"true":"false");
-          continue;
-      }
+          if (useless_load || multiple_users || !user) {
+              printf("  Found: user: %p, multiple? %s, useless? %s\n", user, multiple_users?"true":"false", useless_load?"true":"false");
+              continue;
+          }
 
-      printf("  Found: user: %p (", user);
-      user->print_insn();
-      printf(")\n");
-
-      // 0. figure out what kinda load this is
-      auto opcode = insn->get_opcode();
-      auto space = insn->get_space();
-      // 1. switch the user to do a direct load
-      if (opcode == LD_OP) {
-          for (size_t i = 1; i < user->get_num_operands(); ++i) {
-              auto& op = user->operand_lookup(i);
-              if (!(op.is_reg() && op.reg_num() == dest))
+          if (auto p = getenv("REG2MEM_MAX_OP_COUNT")) {
+              auto it = injected_memory_operands.find(user);
+              if (it != injected_memory_operands.end() && it->second >= atoi(p)) {
+                  printf("  Found: user: %p, but it has more than %d transformed args, skipping\n", user, it->second);
                   continue;
-
-              op = insn->src1();
-              op.set_addr_space(insn->get_space().get_type());
+              }
+              if (it != injected_memory_operands.end())
+                  ++it->second;
+              else
+                  injected_memory_operands[user] = 1;
           }
-          printf("  Patched: user: %p (", user);
+
+          printf("  Found: user: %p (", user);
           user->print_insn();
           printf(")\n");
-      } else {
-          continue;
+
+          // 0. figure out what kinda load this is
+          auto opcode = insn->get_opcode();
+          auto space = insn->get_space();
+          // 1. switch the user to do a direct load
+          if (opcode == LD_OP) {
+              for (size_t i = 1; i < user->get_num_operands(); ++i) {
+                  auto& op = user->operand_lookup(i);
+                  if (!(op.is_reg() && op.reg_num() == dest))
+                      continue;
+
+                  op = insn->src1();
+                  op.set_addr_space(insn->get_space().get_type());
+              }
+              printf("  Patched: user: %p (", user);
+              user->print_insn();
+              printf(")\n");
+          } else {
+              continue;
+          }
+          // 2. remove this instruction
+          it0 = m_instructions.erase(it0);
       }
-      // 2. remove this instruction
-      it0 = m_instructions.erase(it0);
   }
 
   // get the instructions into instruction memory...
