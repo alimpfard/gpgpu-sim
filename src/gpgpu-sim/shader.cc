@@ -4061,6 +4061,8 @@ bool opndcoll_rfu_t::writeback(warp_inst_t &inst) {
       }
     }
   }
+  if (inst.is_cisc_mode()) {
+  }
   for (unsigned i = 0; i < (unsigned)regs.size(); i++) {
     if (m_shader->get_config()->gpgpu_clock_gated_reg_file) {
       unsigned active_count = 0;
@@ -4171,6 +4173,8 @@ void opndcoll_rfu_t::allocate_reads() {
   std::map<unsigned, op_t>::iterator r;
   for (r = read_ops.begin(); r != read_ops.end(); ++r) {
     op_t &op = r->second;
+    if (op.warp()->is_cisc_mode()) {
+    }
     unsigned cu = op.get_oc_id();
     unsigned operand = op.get_operand();
     m_cu[cu]->collect_operand(operand);

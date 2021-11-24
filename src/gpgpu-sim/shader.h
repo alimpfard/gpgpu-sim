@@ -2383,10 +2383,12 @@ class shader_core_ctx : public core_t {
   void incexecstat(warp_inst_t *&inst);
 
   void incregfile_reads(unsigned active_count) {
+    printf("incregfile %u +read %u\n", m_sid, active_count);
     m_stats->m_read_regfile_acesses[m_sid] =
         m_stats->m_read_regfile_acesses[m_sid] + active_count;
   }
   void incregfile_writes(unsigned active_count) {
+    printf("incregfile %u +write %u\n", m_sid, active_count);
     m_stats->m_write_regfile_acesses[m_sid] =
         m_stats->m_write_regfile_acesses[m_sid] + active_count;
   }

@@ -60,6 +60,8 @@ class ptx_recognizer;
 #include <stdarg.h>
 #include "../../libcuda/gpgpu_context.h"
 
+#include <execinfo.h>
+
 using half_float::half;
 
 const char *g_opcode_string[NUM_OPCODES] = {
@@ -268,6 +270,16 @@ ptx_reg_t ptx_thread_info::get_operand_value(const operand_info &op,
     if (((opType != BB128_TYPE) && (opType != BB64_TYPE) &&
          (opType != FF64_TYPE)) ||
         (op.get_addr_space() != undefined_space)) {
+#if 0
+      void* arr[64];
+      auto size = backtrace(arr, 64);
+      if (size > 0) {
+        write(STDOUT_FILENO, "GOV from memory\n", 16);
+        backtrace_symbols_fd(arr, size, STDOUT_FILENO);
+        write(STDOUT_FILENO, "BT==========================================================\n", 61);
+      }
+#endif
+
       if (op.is_reg()) {
         result = get_reg(op.get_symbol());
       } else if (op.is_builtin()) {

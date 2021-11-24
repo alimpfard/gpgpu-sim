@@ -959,6 +959,9 @@ class inst_t {
     }
     isize = 0;
   }
+
+  [[gnu::noinline]]
+  virtual bool is_cisc_mode() const { return false; }
   bool valid() const { return m_decoded; }
   virtual void print_insn(FILE *fp) const {
     fprintf(fp, " [inst @ pc=0x%04x] ", pc);

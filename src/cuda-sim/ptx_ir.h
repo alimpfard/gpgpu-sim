@@ -975,6 +975,19 @@ class ptx_instruction : public warp_inst_t {
 
   const std::list<int> get_scalar_type() const { return m_scalar_type; }
   const std::list<int> get_options() const { return m_options; }
+  [[gnu::noinline]]
+  virtual bool is_cisc_mode() const {
+      if (is_load() || is_store())
+          return false;
+
+      for (auto& operand : m_operands) {
+          if (operand.get_addr_space() != undefined_space)
+              return true;
+      }
+
+      return false;
+  }
+
 
   typedef std::vector<operand_info>::const_iterator const_iterator;
 
