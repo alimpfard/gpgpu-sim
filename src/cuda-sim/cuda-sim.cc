@@ -284,6 +284,20 @@ void function_info::ptx_assemble() {
   // if such a register is loaded into conditionally, leave it alone.
   // FIXME: Further analysis with a phi node could clean that up.
   if (getenv("REG2MEM")) {
+    {
+      std::set<unsigned> seen_regs;
+      for (auto it = m_instructions.begin(); it != m_instructions.end(); ++it) {
+        auto& inst = *it;
+        if (!inst)
+          continue;
+        for (unsigned i = 0; i < inst->get_num_operands(); ++i) {
+          auto& op = inst->operand_lookup(i);
+          if (op.is_valid() && op.is_reg())
+            seen_regs.insert(op.reg_num());
+        }
+      }
+      printf("======= Started with %zu registers used ==========\n", seen_regs.size());
+    }
       std::map<typename std::remove_reference<decltype(*i)>::type, std::size_t> injected_memory_operands;
       for (auto it0 = m_instructions.begin(); it0 != m_instructions.end(); ++it0) {
           auto insn = *it0;
@@ -374,7 +388,21 @@ void function_info::ptx_assemble() {
           // 2. remove this instruction
           it0 = m_instructions.erase(it0);
       }
+      std::set<unsigned> seen_regs;
+      for (auto it = m_instructions.begin(); it != m_instructions.end(); ++it) {
+        auto& inst = *it;
+        if (!inst)
+          continue;
+        for (unsigned i = 0; i < inst->get_num_operands(); ++i) {
+          auto& op = inst->operand_lookup(i);
+          if (op.is_valid() && op.is_reg())
+            seen_regs.insert(op.reg_num());
+        }
+      }
+      printf("======= Ended up with %zu registers used ==========\n", seen_regs.size());
+      exit(0);
   }
+
 
   // get the instructions into instruction memory...
   unsigned num_inst = m_instructions.size();
