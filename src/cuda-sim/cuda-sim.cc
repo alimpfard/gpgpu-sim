@@ -268,6 +268,19 @@ void gpgpu_t::gpgpu_ptx_sim_unbindTexture(
 
 #define MAX_INST_SIZE 8 /*bytes*/
 
+template<typename T>
+struct ScopeGuard {
+  ScopeGuard(T&& x)
+    : t(std::move(x))
+  {}
+  ~ScopeGuard() { if (run) t(); }
+
+  void disarm() { run = false; }
+
+  T t;
+  bool run { true };
+};
+
 void function_info::ptx_assemble() {
   if (m_assembled) {
     return;
@@ -284,6 +297,7 @@ void function_info::ptx_assemble() {
   // if such a register is loaded into conditionally, leave it alone.
   // FIXME: Further analysis with a phi node could clean that up.
   if (getenv("REG2MEM")) {
+    size_t original_used_num_regs;
     {
       std::set<unsigned> seen_regs;
       for (auto it = m_instructions.begin(); it != m_instructions.end(); ++it) {
@@ -296,11 +310,24 @@ void function_info::ptx_assemble() {
             seen_regs.insert(op.reg_num());
         }
       }
-      printf("======= Started with %zu registers used ==========\n", seen_regs.size());
+      printf("\n======= Started with %zu registers used ==========\n", seen_regs.size());
+      original_used_num_regs = seen_regs.size();
     }
-      std::map<typename std::remove_reference<decltype(*i)>::type, std::size_t> injected_memory_operands;
-      for (auto it0 = m_instructions.begin(); it0 != m_instructions.end(); ++it0) {
+    std::map<typename std::remove_reference<decltype(*i)>::type, std::size_t> injected_memory_operands;
+    std::set<unsigned> seen_regs;
+    std::map<ptx_instruction*, std::set<unsigned>> skipped_registers_in_instructions;
+    for (auto it0 = m_instructions.begin(); it0 != m_instructions.end(); ++it0) {
           auto insn = *it0;
+          auto lam = [&] {
+            for (unsigned i = 0; i < insn->get_num_operands(); ++i) {
+              auto& op = insn->operand_lookup(i);
+              if (op.is_valid() && op.is_reg()) {
+                if (skipped_registers_in_instructions.count(insn) == 0 || skipped_registers_in_instructions[insn].count(op.reg_num()) == 0)
+                  seen_regs.insert(op.reg_num());
+              }
+            }
+          };
+          ScopeGuard<decltype(lam)> visit_registers { std::move(lam) };
           // FIXME: Implement 'LDU'
           if (insn->get_opcode() != LD_OP)
               continue;
@@ -376,8 +403,9 @@ void function_info::ptx_assemble() {
                   if (!(op.is_reg() && op.reg_num() == dest))
                       continue;
 
-                  op = insn->src1();
-                  op.set_addr_space(insn->get_space().get_type());
+                  // op = insn->src1();
+                  // op.set_addr_space(insn->get_space().get_type());
+                  skipped_registers_in_instructions[user].insert(op.reg_num());
               }
               printf("  Patched: user: %p (", user);
               user->print_insn();
@@ -386,21 +414,13 @@ void function_info::ptx_assemble() {
               continue;
           }
           // 2. remove this instruction
-          it0 = m_instructions.erase(it0);
+          visit_registers.disarm();
+          // it0 = m_instructions.erase(it0);
       }
-      std::set<unsigned> seen_regs;
-      for (auto it = m_instructions.begin(); it != m_instructions.end(); ++it) {
-        auto& inst = *it;
-        if (!inst)
-          continue;
-        for (unsigned i = 0; i < inst->get_num_operands(); ++i) {
-          auto& op = inst->operand_lookup(i);
-          if (op.is_valid() && op.is_reg())
-            seen_regs.insert(op.reg_num());
-        }
-      }
-      printf("======= Ended up with %zu registers used ==========\n", seen_regs.size());
-      exit(0);
+
+    printf("\n======= Ended up with %zu registers used ==========\n", seen_regs.size());
+    gpgpu_ctx->the_gpgpusim->g_the_gpu_config->shader().gpgpu_shader_registers *= original_used_num_regs * 1.0f / seen_regs.size();
+    gpgpu_ctx->the_gpgpusim->g_the_gpu_config->shader().gpgpu_registers_per_block *= original_used_num_regs * 1.0f / seen_regs.size();
   }
 
 
