@@ -296,6 +296,10 @@ void function_info::ptx_assemble() {
   // if a register filled by a load instruction is used only once, remove it and change its user to a direct mem access.
   // if such a register is loaded into conditionally, leave it alone.
   // FIXME: Further analysis with a phi node could clean that up.
+  // @p0 lds r1, (r1)
+  // @p1 lds r1, (r1)
+  // @p2 lds r1, (r1)
+  // use r1
   if (getenv("REG2MEM")) {
     size_t original_used_num_regs;
     {
@@ -307,7 +311,7 @@ void function_info::ptx_assemble() {
         for (unsigned i = 0; i < inst->get_num_operands(); ++i) {
           auto& op = inst->operand_lookup(i);
           if (op.is_valid() && op.is_reg())
-            seen_regs.insert(op.reg_num());
+            seen_regs.insert(op.arch_reg_num());
         }
       }
       printf("\n======= Started with %zu registers used ==========\n", seen_regs.size());
@@ -323,7 +327,7 @@ void function_info::ptx_assemble() {
               auto& op = insn->operand_lookup(i);
               if (op.is_valid() && op.is_reg()) {
                 if (skipped_registers_in_instructions.count(insn) == 0 || skipped_registers_in_instructions[insn].count(op.reg_num()) == 0)
-                  seen_regs.insert(op.reg_num());
+                  seen_regs.insert(op.arch_reg_num());
               }
             }
           };
@@ -403,8 +407,8 @@ void function_info::ptx_assemble() {
                   if (!(op.is_reg() && op.reg_num() == dest))
                       continue;
 
-                  // op = insn->src1();
-                  // op.set_addr_space(insn->get_space().get_type());
+                  op = insn->src1();
+                  op.set_addr_space(insn->get_space().get_type());
                   skipped_registers_in_instructions[user].insert(op.reg_num());
               }
               printf("  Patched: user: %p (", user);
@@ -415,7 +419,7 @@ void function_info::ptx_assemble() {
           }
           // 2. remove this instruction
           visit_registers.disarm();
-          // it0 = m_instructions.erase(it0);
+          it0 = m_instructions.erase(it0);
       }
 
     printf("\n======= Ended up with %zu registers used ==========\n", seen_regs.size());
